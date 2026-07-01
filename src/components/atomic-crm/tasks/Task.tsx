@@ -122,6 +122,19 @@ export const Task = ({
               {task.text}
             </div>
             <div className="text-sm text-muted-foreground">
+              {task.start_date && (
+                <>
+                  {translate("resources.tasks.fields.start_short")}
+                  &nbsp;
+                  <DateField
+                    source="start_date"
+                    record={task}
+                    showDate
+                    showTime
+                  />
+                  {" · "}
+                </>
+              )}
               {translate("resources.tasks.fields.due_short")}
               &nbsp;
               <DateField source="due_date" record={task} showDate showTime />

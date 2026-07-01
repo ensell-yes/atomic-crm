@@ -313,9 +313,11 @@ export const englishCrmMessages = {
       forcedCaseName: "Task",
       fields: {
         text: "Description",
+        start_date: "Start date",
         due_date: "Due date",
         type: "Type",
         contact_id: "Contact",
+        start_short: "starts",
         due_short: "due",
       },
       action: {

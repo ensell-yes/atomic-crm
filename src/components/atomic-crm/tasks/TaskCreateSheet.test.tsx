@@ -1,10 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { commands } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { Mobile } from "./TaskCreateSheet.stories";
 import { useDataProvider, type DataProvider } from "ra-core";
 import { buildContact } from "@/test/StoryWrapper";
 
 describe("TaskCreateSheet", () => {
+  let originalTimezone: string;
+
+  beforeEach(async () => {
+    originalTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    await commands.setTimezone("UTC");
+  });
+
+  afterEach(async () => {
+    await commands.setTimezone(originalTimezone);
+  });
+
   it("creates a task for a selected contact and updates last_seen", async () => {
     let dataProvider: DataProvider | null = null;
     const DataProviderListener = () => {
@@ -60,6 +72,10 @@ describe("TaskCreateSheet", () => {
     const typeOptions = screen.getByRole("listbox");
     await typeOptions.getByText("Call").click();
 
+    const startDate = "2026-03-02T09:00";
+    const startDateInput = screen.getByLabelText(/start date/i);
+    await startDateInput.fill(startDate);
+
     const dueDateInput = screen.getByLabelText(/due date/i);
     await dueDateInput.clear();
     await dueDateInput.fill("2026-03-06T12:30");
@@ -94,6 +110,7 @@ describe("TaskCreateSheet", () => {
 
     expect(createdTask).toMatchObject({
       contact_id: 2,
+      start_date: new Date(startDate).toISOString(),
       text: "Follow up about onboarding",
       type: "call",
     });
