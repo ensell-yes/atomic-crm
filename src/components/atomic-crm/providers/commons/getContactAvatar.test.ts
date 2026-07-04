@@ -2,15 +2,15 @@ import { fetchWithTimeout } from "../../misc/fetchWithTimeout";
 import type { Contact, EmailAndType } from "../../types";
 import { getContactAvatar, hash } from "./getContactAvatar";
 
+vi.mock("../../misc/fetchWithTimeout", () => ({
+  fetchWithTimeout: vi.fn(),
+}));
+
 describe("getContactAvatar", () => {
-  beforeAll(() => {
-    vi.mock("../../misc/fetchWithTimeout", () => ({
-      fetchWithTimeout: vi.fn(),
-    }));
+  beforeEach(() => {
+    vi.mocked(fetchWithTimeout).mockReset();
   });
-  afterAll(() => {
-    vi.resetAllMocks();
-  });
+
   it("should return gravatar URL for anthony@marmelab.com", async () => {
     const email: EmailAndType[] = [
       { email: "anthony@marmelab.com", type: "Work" },
