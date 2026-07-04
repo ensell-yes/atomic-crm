@@ -42,7 +42,8 @@ interface TasksTable {
   contact_id: number;
   type: string | null;
   text: string | null;
-  due_date: Date;
+  start_date: Date | null;
+  due_date: Date | null;
   done_date: Date | null;
   sales_id: number | null;
 }

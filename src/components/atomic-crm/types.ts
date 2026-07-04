@@ -148,6 +148,7 @@ export type Task = {
   contact_id: Identifier;
   type: string;
   text: string;
+  start_date?: string | null;
   due_date: string;
   done_date?: string | null;
   sales_id?: Identifier;

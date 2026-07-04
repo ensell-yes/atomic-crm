@@ -113,6 +113,7 @@ create table public.tasks (
     contact_id bigint not null,
     type text,
     text text,
+    start_date timestamp with time zone,
     due_date timestamp with time zone,
     done_date timestamp with time zone,
     sales_id bigint

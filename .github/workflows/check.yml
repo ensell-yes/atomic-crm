@@ -114,6 +114,39 @@ jobs:
       - name: Run Playwright tests
         run: make test-e2e-ci
 
+    db-test:
+        name: 🛡️ RLS pgTAP
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        if: ${{ !github.event.pull_request.draft || github.event_name == 'push' }}
+        steps:
+            - name: 📥 Checkout repo
+              uses: actions/checkout@v4
+
+            - name: 🧰 Install Supabase CLI
+              uses: supabase/setup-cli@v1
+              with:
+                  version: 2.109.0
+
+            - name: 🔒 Assert pinned CLI version
+              run: |
+                  installed="$(supabase --version)"
+                  echo "installed CLI: $installed"
+                  case "$installed" in
+                    *"2.109.0"*) echo "version pin OK" ;;
+                    *) echo "CLI version drift: expected 2.109.0, got $installed"; exit 1 ;;
+                  esac
+
+            - name: 🐘 Start local Supabase stack
+              run: supabase start
+
+            - name: 🛡️ Run RLS boundary pgTAP suite
+              run: supabase test db
+
+            - name: 🧹 Stop stack
+              if: always()
+              run: supabase stop
+
     build:
         name: 🔨 Build
         timeout-minutes: 10
