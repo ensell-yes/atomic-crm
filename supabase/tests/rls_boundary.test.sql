@@ -5,7 +5,7 @@
 create extension if not exists pgtap with schema extensions;
 
 begin;
-select plan(11);
+select plan(14);
 
 create function pg_temp.visible_count(query text)
 returns int
@@ -76,6 +76,39 @@ select throws_ok(
   'anon INSERT into contacts is denied by RLS (42501)');
 
 reset role;
+
+-- Arm 2: privilege escalation blocked.
+-- sales has ONLY a SELECT policy, so UPDATE/DELETE match 0 rows.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000b2","role":"authenticated"}';
+
+select is(
+  pg_temp.visible_count($$
+    with u as (
+      update public.sales set administrator = true
+      where user_id = '00000000-0000-0000-0000-0000000000b2' returning 1)
+    select count(*)::int from u
+  $$),
+  0,
+  'non-admin UPDATE sales.administrator affects 0 rows');
+
+select is(
+  pg_temp.visible_count($$
+    with d as (
+      delete from public.sales
+      where user_id = '00000000-0000-0000-0000-0000000000a1' returning 1)
+    select count(*)::int from d
+  $$),
+  0,
+  'non-admin DELETE sales affects 0 rows');
+
+reset role;
+
+-- Re-read as superuser: the escalation attempt changed nothing.
+select is(
+  (select administrator from public.sales where user_id = '00000000-0000-0000-0000-0000000000b2'),
+  false,
+  'non-admin administrator flag remains false after escalation attempt');
 
 select * from finish();
 rollback;
