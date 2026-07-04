@@ -5,7 +5,7 @@
 create extension if not exists pgtap with schema extensions;
 
 begin;
-select plan(14);
+select plan(16);
 
 create function pg_temp.visible_count(query text)
 returns int
@@ -109,6 +109,38 @@ select is(
   (select administrator from public.sales where user_id = '00000000-0000-0000-0000-0000000000b2'),
   false,
   'non-admin administrator flag remains false after escalation attempt');
+
+-- Arm 3: admin-only configuration writes.
+-- UPDATE policy is `using (public.is_admin())`; non-admin cannot write, admin can.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000b2","role":"authenticated"}';
+
+select is(
+  pg_temp.visible_count($$
+    with u as (
+      update public.configuration set config = '{"touched":true}'::jsonb
+      where id = 1 returning 1)
+    select count(*)::int from u
+  $$),
+  0,
+  'non-admin UPDATE configuration affects 0 rows');
+
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+select is(
+  pg_temp.visible_count($$
+    with u as (
+      update public.configuration set config = '{"touched":true}'::jsonb
+      where id = 1 returning 1)
+    select count(*)::int from u
+  $$),
+  1,
+  'admin UPDATE configuration affects 1 row');
+
+reset role;
 
 select * from finish();
 rollback;
