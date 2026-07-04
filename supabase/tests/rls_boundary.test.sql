@@ -5,7 +5,22 @@
 create extension if not exists pgtap with schema extensions;
 
 begin;
-select plan(1);
+select plan(11);
+
+create function pg_temp.visible_count(query text)
+returns int
+language plpgsql
+as $$
+declare
+  row_count int;
+begin
+  execute query into row_count;
+  return row_count;
+exception
+  when insufficient_privilege then
+    return -1;
+end;
+$$;
 
 -- Fixtures run as the superuser `supabase test db` connects as.
 -- Seed identities through auth.users. The on_auth_user_created trigger
@@ -36,8 +51,31 @@ insert into public.configuration (id, config) values (1, '{}'::jsonb)
 insert into public.contacts (first_name, last_name) values ('Seed', 'Contact');
 insert into public.deals (name, stage) values ('Seed Deal', 'opportunity');
 
--- Smoke assertion, replaced by real arms in later tasks.
-select ok(true, 'fixtures loaded: pgtap harness is live');
+-- Arm 1: anon denial.
+-- The migration-built stack currently denies anon SELECT at the privilege layer;
+-- if future grants expose the tables, the no-anon-policy RLS boundary must still
+-- return 0 rows. Any positive count means anon can read CRM data.
+set local role anon;
+set local request.jwt.claims to '{"role":"anon"}';
+
+select cmp_ok(pg_temp.visible_count('select count(*)::int from public.companies'), '<=', 0, 'anon sees 0 companies');
+select cmp_ok(pg_temp.visible_count('select count(*)::int from public.contacts'), '<=', 0, 'anon sees 0 contacts');
+select cmp_ok(pg_temp.visible_count('select count(*)::int from public.contact_notes'), '<=', 0, 'anon sees 0 contact_notes');
+select cmp_ok(pg_temp.visible_count('select count(*)::int from public.deals'), '<=', 0, 'anon sees 0 deals');
+select cmp_ok(pg_temp.visible_count('select count(*)::int from public.deal_notes'), '<=', 0, 'anon sees 0 deal_notes');
+select cmp_ok(pg_temp.visible_count('select count(*)::int from public.tasks'), '<=', 0, 'anon sees 0 tasks');
+select cmp_ok(pg_temp.visible_count('select count(*)::int from public.tags'), '<=', 0, 'anon sees 0 tags');
+select cmp_ok(pg_temp.visible_count('select count(*)::int from public.sales'), '<=', 0, 'anon sees 0 sales');
+select cmp_ok(pg_temp.visible_count('select count(*)::int from public.configuration'), '<=', 0, 'anon sees 0 configuration');
+select cmp_ok(pg_temp.visible_count('select count(*)::int from public.favicons_excluded_domains'), '<=', 0, 'anon sees 0 favicons_excluded_domains');
+
+select throws_ok(
+  $$ insert into public.contacts (first_name, last_name) values ('anon', 'inject') $$,
+  '42501',
+  null,
+  'anon INSERT into contacts is denied by RLS (42501)');
+
+reset role;
 
 select * from finish();
 rollback;
