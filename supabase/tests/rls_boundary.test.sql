@@ -5,7 +5,7 @@
 create extension if not exists pgtap with schema extensions;
 
 begin;
-select plan(16);
+select plan(21);
 
 create function pg_temp.visible_count(query text)
 returns int
@@ -141,6 +141,44 @@ select is(
   'admin UPDATE configuration affects 1 row');
 
 reset role;
+
+-- Arm 4: shared model intact.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000b2","role":"authenticated"}';
+
+select cmp_ok(
+  (select count(*)::int from public.contacts),
+  '>',
+  0,
+  'authenticated sees shared contacts');
+
+select lives_ok(
+  $$ insert into public.contacts (first_name, last_name) values ('New', 'Contact') $$,
+  'authenticated can insert contacts (shared workspace write)');
+
+select cmp_ok(
+  (select count(*)::int from public.sales),
+  '>',
+  0,
+  'authenticated can read the sales directory');
+
+reset role;
+
+-- Arm 5: live catalog reconciliation.
+-- Prove the running stack enforces RLS on exactly the expected public tables and
+-- that sales exposes no write policy.
+select is(
+  (select coalesce(array_agg(c.relname order by c.relname), array[]::name[])::text
+     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relrowsecurity),
+  '{companies,configuration,contact_notes,contacts,deal_notes,deals,favicons_excluded_domains,sales,tags,tasks}',
+  'exactly 10 expected public tables have RLS enabled');
+
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public' and tablename = 'sales' and cmd <> 'SELECT'),
+  0,
+  'sales exposes no non-SELECT policy (escalation write-surface is closed)');
 
 select * from finish();
 rollback;
