@@ -47,9 +47,18 @@ update public.sales set administrator = false where user_id = '00000000-0000-000
 insert into public.configuration (id, config) values (1, '{}'::jsonb)
   on conflict (id) do nothing;
 
--- One CRM row each for the anon-sees-zero and shared-model-positive arms.
+-- Seed at least one row in every RLS-enabled public table so each anon-denial
+-- assertion is load-bearing if a future grant/policy exposes that table.
+insert into public.companies (name) values ('Seed Company');
 insert into public.contacts (first_name, last_name) values ('Seed', 'Contact');
+insert into public.contact_notes (contact_id, text)
+values ((select id from public.contacts where first_name = 'Seed' and last_name = 'Contact'), 'Seed contact note');
 insert into public.deals (name, stage) values ('Seed Deal', 'opportunity');
+insert into public.deal_notes (deal_id, text)
+values ((select id from public.deals where name = 'Seed Deal'), 'Seed deal note');
+insert into public.tags (name, color) values ('Seed Tag', '#2563eb');
+insert into public.tasks (contact_id, text)
+values ((select id from public.contacts where first_name = 'Seed' and last_name = 'Contact'), 'Seed task');
 
 -- Arm 1: anon denial.
 -- The migration-built stack currently denies anon SELECT at the privilege layer;
@@ -168,7 +177,7 @@ reset role;
 -- Prove the running stack enforces RLS on exactly the expected public tables and
 -- that sales exposes no write policy.
 select is(
-  (select coalesce(array_agg(c.relname order by c.relname), array[]::name[])::text
+  (select coalesce(array_agg(c.relname order by c.relname collate "C"), array[]::name[])::text
      from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relrowsecurity),
   '{companies,configuration,contact_notes,contacts,deal_notes,deals,favicons_excluded_domains,sales,tags,tasks}',
